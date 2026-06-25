@@ -1,3 +1,4 @@
+#WasteLess
 AI-Powered Food Waste Reduction System 🍽️
 
 The final project for the Building AI course.
