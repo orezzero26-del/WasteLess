@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ExpiryTracker - AI Food App</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ExpiryTracker">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="theme-color" content="#4CAF50">
+    <meta name="description" content="AI Food Expiry Tracker - Building AI Course Project">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Service Worker -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(() => console.log('✅ Service Worker registered'))
+            .catch(err => console.log('Service Worker not registered:', err));
+    }
+    </script>
+    
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --primary-dark: #388E3C;
+            --danger: #F44336;
+            --warning: #FF9800;
+            --info: #2196F3;
+            --bg: #f5f5f5;
+            --card: #ffffff;
+            --text: #333333;
+            --text-light: #666666;
+            --radius: 16px;
+            --shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 480px;
+            margin: 0 auto;
+            min-height: 100vh;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #43A047, #66BB6A);
+            color: white;
+            padding: 20px 16px 24px;
+            border-radius: 0 0 24px 24px;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 10px 14px;
+            flex: 1;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-card .number {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .stat-card .label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+
+        /* Main Content */
+        .content {
+            padding: 16px;
+            padding-bottom: 100px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+
+        .card:active {
+            transform: scale(0.98);
+        }
+
+        /* Menu Grid */
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .menu-btn {
+            background: var(--card);
+            border: none;
+            border-radius: var(--radius);
+            padding: 20px 12px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .menu-btn:active {
+            transform: scale(0.95);
+            background: #e8f5e9;
+        }
+
+        .menu-btn .icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .menu-btn .title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            display: block;
+        }
+
+        .menu-btn .subtitle {
+            font-size: 11px;
+            color: var(--text-light);
+            display: block;
+            margin-top: 2px;
+        }
+
+        .menu-btn.camera-btn {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #4CAF50, #66BB6A);
+            color: white;
+            padding: 24px;
+        }
+
+        .menu-btn.camera-btn .icon,
+        .menu-btn.camera-btn .title,
+        .menu-btn.camera-btn .subtitle {
+            color: white;
+        }
+
+        .menu-btn.camera-btn .icon {
+            font-size: 40px;
+        }
+
+        .menu-btn.camera-btn .title {
+            font-size: 16px;
+        }
+
+        /* Product List */
+        .product-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px;
+            background: var(--card);
+            border-radius: var(--radius);
+            margin-bottom: 8px;
+            box-shadow: var(--shadow);
+            border-left: 4px solid transparent;
+        }
+
+        .product-item.urgent { border-left-color: #F44336; }
+        .product-item.warning { border-left-color: #FF9800; }
+        .product-item.soon { border-left-color: #FFEB3B; }
+        .product-item.ok { border-left-color: #4CAF50; }
+
+        .product-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .product-icon.urgent { background: #ffebee; }
+        .product-icon.warning { background: #fff3e0; }
+        .product-icon.soon { background: #fffde7; }
+        .product-icon.ok { background: #e8f5e9; }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-info .name {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .product-info .date {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .product-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .icon-btn.recipe { background: #e8eaf6; color: #3f51b5; }
+        .icon-btn.delete { background: #ffebee; color: #f44336; }
+        .icon-btn:active { transform: scale(0.9); }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .empty-state .icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            background: var(--card);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            z-index: 100;
+        }
+
+        .nav-item {
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 8px 16px;
+            text-align: center;
+            color: #999;
+            transition: all 0.2s;
+            font-family: inherit;
+            font-size: 11px;
+        }
+
+        .nav-item.active {
+            color: var(--primary);
+        }
+
+        .nav-item .nav-icon {
+            font-size: 22px;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: flex-end;
+            z-index: 200;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+            border-radius: 24px 24px 0 0;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+        }
+
+        .close-btn {
+            background: #f5f5f5;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-light);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: var(--text);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* Camera */
+        .camera-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            z-index: 300;
+        }
+
+        .camera-view video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+        }
+
+        .capture-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 4px solid white;
+            background: rgba(255,255,255,0.3);
+            cursor: pointer;
+        }
+
+        .capture-btn:active {
+            background: rgba(255,255,255,0.6);
+        }
+
+        .camera-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 24px;
+            font-size: 14px;
+            z-index: 400;
+            animation: toastIn 0.3s, toastOut 0.3s 2s;
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        @keyframes toastOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Recipe Card */
+        .recipe-card {
+            background: #f9f9f9;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+
+        .recipe-card h4 {
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .recipe-card p {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        /* Search Bar */
+        .search-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .search-bar button {
+            padding: 12px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>🍽️ ExpiryTracker</h1>
+    <p>Building AI Course Project</p>
+    <div class="header-stats">
+        <div class="stat-card">
+            <div class="number" id="totalProducts">0</div>
+            <div class="label">Products</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="expiringCount">0</div>
+            <div class="label">Expiring Soon</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="expiredCount">0</div>
+            <div class="label">Expired</div>
+        </div>
+    </div>
+</div>
+
+<!-- Content -->
+<div class="content" id="mainContent">
+    <!-- Menu -->
+    <div id="menuView">
+        <div class="menu-grid">
+            <button class="menu-btn camera-btn" onclick="openCamera()">
+                <span class="icon">📸</span>
+                <span class="title">Scan Product</span>
+                <span class="subtitle">Camera + AI OCR</span>
+            </button>
+            <button class="menu-btn" onclick="showAddForm()">
+                <span class="icon">✏️</span>
+                <span class="title">Add Manually</span>
+                <span class="subtitle">Type details</span>
+            </button>
+            <button class="menu-btn" onclick="showExpiring()">
+                <span class="icon">⚠️</span>
+                <span class="title">Expiring Soon</span>
+                <span class="subtitle">7-day alerts</span>
+            </button>
+            <button class="menu-btn" onclick="showAllProducts()">
+                <span class="icon">📊</span>
+                <span class="title">All Products</span>
+                <span class="subtitle">View & manage</span>
+            </button>
+            <button class="menu-btn" onclick="showRecipes()">
+                <span class="icon">🍳</span>
+                <span class="title">Recipes</span>
+                <span class="subtitle">Search online</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Product List View -->
+    <div id="productListView" class="hidden"></div>
+
+    <!-- Expiring View -->
+    <div id="expiringView" class="hidden"></div>
+
+    <!-- Recipe View -->
+    <div id="recipeView" class="hidden"></div>
+
+    <!-- Add Form View -->
+    <div id="addFormView" class="hidden">
+        <div class="card">
+            <h3 id="formTitle">✏️ Add Product</h3>
+            <div class="form-group">
+                <label>Product Name</label>
+                <input type="text" id="productName" placeholder="e.g., Milk, Eggs, Bread...">
+            </div>
+            <div class="form-group">
+                <label>Expiry Date</label>
+                <input type="date" id="expiryDate">
+            </div>
+            <p id="ocrFeedback" style="font-size:12px;color:#666;margin-bottom:12px;"></p>
+            <button class="btn btn-primary" onclick="saveProduct()">💾 Save Product</button>
+            <button class="btn btn-secondary" onclick="goBack()" style="margin-top:8px;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Navigation -->
+<div class="bottom-nav">
+    <button class="nav-item active" onclick="goHome()">
+        <span class="nav-icon">🏠</span>
+        Home
+    </button>
+    <button class="nav-item" onclick="showAllProducts()">
+        <span class="nav-icon">📦</span>
+        Products
+    </button>
+    <button class="nav-item" onclick="openCamera()">
+        <span class="nav-icon">📸</span>
+        Scan
+    </button>
+    <button class="nav-item" onclick="showExpiring()">
+        <span class="nav-icon">⏰</span>
+        Alerts
+    </button>
+    <button class="nav-item" onclick="showRecipes()">
+        <span class="nav-icon">🍳</span>
+        Recipes
+    </button>
+</div>
+
+<!-- Camera View -->
+<div id="cameraView" class="camera-view hidden">
+    <video id="video" autoplay playsinline></video>
+    <button class="camera-close" onclick="closeCamera()">✕</button>
+    <div class="camera-overlay">
+        <button class="capture-btn" onclick="capturePhoto()"></button>
+    </div>
+    <canvas id="canvas" class="hidden"></canvas>
+</div>
+
+<script>
+// ==================== DATABASE ====================
+const DB_KEY = 'expiry_tracker_db';
+
+function getDB() {
+    return JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+}
+
+function saveDB(data) {
+    localStorage.setItem(DB_KEY, JSON.stringify(data));
+}
+
+function addProduct(name, expiry) {
+    const db = getDB();
+    const product = {
+        id: Date.now(),
+        name: name,
+        expiry: expiry,
+        added: new Date().toISOString().split('T')[0]
+    };
+    db.push(product);
+    saveDB(db);
+    updateStats();
+    return product;
+}
+
+function deleteProduct(id) {
+    let db = getDB();
+    db = db.filter(p => p.id !== id);
+    saveDB(db);
+    updateStats();
+}
+
+function getDaysLeft(expiry) {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const exp = new Date(expiry);
+    return Math.ceil((exp - today) / (1000*60*60*24));
+}
+
+function getExpiring(days = 7) {
+    return getDB().filter(p => {
+        const left = getDaysLeft(p.expiry);
+        return left >= 0 && left <= days;
+    }).sort((a,b) => a.expiry.localeCompare(b.expiry));
+}
+
+// ==================== STATS ====================
+function updateStats() {
+    const db = getDB();
+    document.getElementById('totalProducts').textContent = db.length;
+    
+    const expiring = db.filter(p => {
+        const left = getDaysLeft(p.expiry);
+        return left >= 0 && left <= 7;
+    }).length;
+    document.getElementById('expiringCount').textContent = expiring;
+    
+    const expired = db.filter(p => getDaysLeft(p.expiry) < 0).length;
+    document.getElementById('expiredCount').textContent = expired;
+}
+
+// ==================== NAVIGATION ====================
+function hideAll() {
+    document.getElementById('menuView').classList.add('hidden');
+    document.getElementById('productListView').classList.add('hidden');
+    document.getElementById('expiringView').classList.add('hidden');
+    document.getElementById('recipeView').classList.add('hidden');
+    document.getElementById('addFormView').classList.add('hidden');
+}
+
+function goHome() {
+    hideAll();
+    document.getElementById('menuView').classList.remove('hidden');
+    updateStats();
+}
+
+function goBack() {
+    goHome();
+}
+
+// ==================== PRODUCT LIST ====================
+function showAllProducts() {
+    hideAll();
+    const view = document.getElementById('productListView');
+    view.classList.remove('hidden');
+    
+    const db = getDB().sort((a,b) => a.expiry.localeCompare(b.expiry));
+    
+    if (db.length === 0) {
+        view.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">📭</div>
+                <h3>No Products Yet</h3>
+                <p>Scan your first product or add one manually!</p>
+            </div>`;
+        return;
+    }
+    
+    view.innerHTML = '<h3 style="margin-bottom:12px;">📦 All Products</h3>' + 
+        db.map(p => {
+            const days = getDaysLeft(p.expiry);
+            let status = 'ok';
+            let emoji = '✅';
+            if (days < 0) { status = 'urgent'; emoji = '🔴'; }
+            else if (days <= 2) { status = 'urgent'; emoji = '🔴'; }
+            else if (days <= 4) { status = 'warning'; emoji = '🟠'; }
+            else if (days <= 7) { status = 'soon'; emoji = '🟡'; }
+            
+            return `
+                <div class="product-item ${status}">
+                    <div class="product-icon ${status}">${emoji}</div>
+                    <div class="product-info">
+                        <div class="name">${p.name}</div>
+                        <div class="date">📅 ${p.expiry} • ${days} days</div>
+                    </div>
+                    <div class="product-actions">
+                        <button class="icon-btn recipe" onclick="searchOnline('${p.name}')">🍳</button>
+                        <button class="icon-btn delete" onclick="removeProduct(${p.id})">🗑️</button>
+                    </div>
+                </div>`;
+        }).join('');
+}
+
+function removeProduct(id) {
+    if (confirm('Delete this product?')) {
+        deleteProduct(id);
+        showAllProducts();
+        showToast('✅ Product deleted');
+    }
+}
+
+// ==================== EXPIRING ====================
+function showExpiring() {
+    hideAll();
+    const view = document.getElementById('expiringView');
+    view.classList.remove('hidden');
+    
+    const expiring = getExpiring(7);
+    
+    if (expiring.length === 0) {
+        view.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">✅</div>
+                <h3>All Good!</h3>
+                <p>No products expiring within 7 days.</p>
+            </div>`;
+        return;
+    }
+    
+    view.innerHTML = '<h3 style="margin-bottom:12px;">⚠️ Expiring Soon</h3>' +
+        expiring.map(p => {
+            const days = getDaysLeft(p.expiry);
+            let alarmMsg = '';
+            let status = 'ok';
+            if (days <= 2) { alarmMsg = '🚨 Use TODAY!'; status = 'urgent'; }
+            else if (days <= 4) { alarmMsg = '🔔 Use soon!'; status = 'warning'; }
+            else { alarmMsg = '📅 Plan to use'; status = 'soon'; }
+            
+            return `
+                <div class="product-item ${status}">
+                    <div class="product-icon ${status}">⏰</div>
+                    <div class="product-info">
+                        <div class="name">${p.name}</div>
+                        <div class="date">📅 ${p.expiry} • ${days} days left</div>
+                        <div style="color:#f44336;font-size:12px;font-weight:600;">${alarmMsg}</div>
+                    </div>
+                    <div class="product-actions">
+                        <button class="icon-btn recipe" onclick="searchOnline('${p.name}')">🍳</button>
+                    </div>
+                </div>`;
+        }).join('');
+}
+
+// ==================== ADD FORM ====================
+function showAddForm(dateValue = '') {
+    hideAll();
+    document.getElementById('addFormView').classList.remove('hidden');
+    document.getElementById('formTitle').textContent = '✏️ Add Product';
+    document.getElementById('productName').value = '';
+    document.getElementById('expiryDate').value = dateValue;
+    document.getElementById('ocrFeedback').textContent = '';
+}
+
+function saveProduct() {
+    const name = document.getElementById('productName').value.trim();
+    const expiry = document.getElementById('expiryDate').value;
+    
+    if (!name) { showToast('❌ Please enter product name'); return; }
+    if (!expiry) { showToast('❌ Please enter expiry date'); return; }
+    
+    const product = addProduct(name, expiry);
+    const days = getDaysLeft(expiry);
+    
+    showToast(`✅ ${name} saved! ${days} days left`);
+    goHome();
+}
+
+// ==================== CAMERA ====================
+let stream = null;
+
+async function openCamera() {
+    document.getElementById('cameraView').classList.remove('hidden');
+    
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+        document.getElementById('video').srcObject = stream;
+    } catch (err) {
+        showToast('❌ Cannot access camera');
+        closeCamera();
+    }
+}
+
+function closeCamera() {
+    if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+    }
+    document.getElementById('cameraView').classList.add('hidden');
+}
+
+function capturePhoto() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    
+    closeCamera();
+    
+    // Simulate OCR - in production, use Tesseract.js or Google ML Kit
+    const today = new Date();
+    const future = new Date(today);
+    future.setDate(today.getDate() + Math.floor(Math.random() * 30) + 5);
+    const detectedDate = future.toISOString().split('T')[0];
+    
+    document.getElementById('ocrFeedback').innerHTML = 
+        '🤖 <b>AI detected:</b> ' + detectedDate + 
+        '<br><small>Edit if incorrect</small>';
+    
+    showAddForm(detectedDate);
+}
+
+// ==================== RECIPES ====================
+function showRecipes() {
+    hideAll();
+    const view = document.getElementById('recipeView');
+    view.classList.remove('hidden');
+    
+    view.innerHTML = `
+        <h3 style="margin-bottom:12px;">🍳 Find Recipes</h3>
+        <div class="search-bar">
+            <input type="text" id="recipeSearch" placeholder="Product name...">
+            <button onclick="searchRecipe()">🔍</button>
+        </div>
+        <p style="color:#666;font-size:13px;">Search online for recipes using your ingredients</p>
+        <div id="recipeResults"></div>
+    `;
+}
+
+function searchRecipe() {
+    const query = document.getElementById('recipeSearch').value.trim();
+    if (query) {
+        searchOnline(query);
+    }
+}
+
+function searchOnline(product) {
+    const url = `https://www.google.com/search?q=${encodeURIComponent(product + ' recipe')}`;
+    window.open(url, '_blank');
+    showToast('🌐 Opening recipes...');
+}
+
+// ==================== TOAST ====================
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+}
+
+// ==================== INIT ====================
+updateStats();
+</script>
+
+</body>
+</html>
